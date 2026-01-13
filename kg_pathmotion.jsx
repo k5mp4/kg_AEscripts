@@ -17,7 +17,7 @@ Install:
 (function MaskPathMotionPanel(thisObj) {
 
     var SCRIPT_NAME = "Mask Path Motion";
-    var SCRIPT_VERSION = "1.5.1";
+    var SCRIPT_VERSION = "2.1.0";
 
     function buildUI(thisObj) {
         var pal = (thisObj instanceof Panel) ? thisObj : new Window("palette", SCRIPT_NAME, undefined, { resizeable: true });
@@ -187,13 +187,24 @@ Install:
                     var targetLayers = [];
                     log("isMultiLayer: " + isMultiLayer);
 
+                    // PathMotion_Nullを検出する関数（外部スクリプトで名前が変更されても対応）
+                    function isPathMotionNull(layerName) {
+                        // 以下のパターンを検出:
+                        // - "PathMotion_Null"で始まる
+                        // - "PathMotion"を含む
+                        // - "Path Layer"を含む（shapeRig等の外部スクリプト対応）
+                        return layerName.indexOf("PathMotion_Null") === 0 ||
+                               layerName.indexOf("PathMotion") !== -1 ||
+                               layerName.indexOf("Path Layer") !== -1;
+                    }
+
                     if (isMultiLayer) {
                         log("Multi-layer mode");
-                        // 複数レイヤーモード：PathMotion_Nullを探す
+                        // 複数レイヤーモード：PathMotion_Nullを探す（名前変更対応）
                         for (var s = 0; s < sel.length; s++) {
-                            if (sel[s].name === "PathMotion_Null") {
+                            if (isPathMotionNull(sel[s].name)) {
                                 sourceLayer = sel[s];
-                                log("Found PathMotion_Null at index: " + sourceLayer.index);
+                                log("Found PathMotion Null: " + sel[s].name + " at index: " + sourceLayer.index);
                                 break;
                             }
                         }
@@ -207,18 +218,19 @@ Install:
                         // マスクの確認
                         var nullMasks = sourceLayer.property("ADBE Mask Parade");
                         if (!nullMasks || nullMasks.numProperties < maskIndex) {
-                            alert("PathMotion_Nullにマスク " + maskIndex + " がありません。");
+                            alert("マスク " + maskIndex + " がありません。（レイヤー: " + sourceLayer.name + "）");
                             app.endUndoGroup();
                             return;
                         }
 
                         nullLayer = sourceLayer;
                         nullLayerIndex = sourceLayer.index;
+                        var nullLayerName = sourceLayer.name; // レイヤー名を保存（順序変更対応）
 
                         // PathMotion_Null以外のレイヤーをターゲットとして収集
                         log("Collecting target layers...");
                         for (var t = 0; t < sel.length; t++) {
-                            if (sel[t].name !== "PathMotion_Null") {
+                            if (!isPathMotionNull(sel[t].name)) {
                                 log("Adding target: " + sel[t].name);
                                 targetLayers.push({
                                     index: sel[t].index,
@@ -231,7 +243,7 @@ Install:
                         log("Target layers count: " + targetLayers.length);
 
                         if (targetLayers.length === 0) {
-                            alert("PathMotion_Null以外のレイヤーも選択してください。");
+                            alert("PathMotion Null以外のレイヤーも選択してください。");
                             app.endUndoGroup();
                             return;
                         }
@@ -254,9 +266,10 @@ Install:
                     }
 
                     // マスクソースの決定（共通）
+                    // レイヤー順序が変わっても対応できるようにレイヤー名で参照
                     var maskSourceExpr;
                     if (isMultiLayer) {
-                        maskSourceExpr = "comp(\"" + comp.name.replace(/"/g, "\\\"") + "\").layer(\"PathMotion_Null\").mask(1).maskPath";
+                        maskSourceExpr = "comp(\"" + comp.name.replace(/"/g, "\\\"") + "\").layer(\"" + nullLayerName.replace(/"/g, "\\\"") + "\").mask(1).maskPath";
                     } else {
                         maskSourceExpr = "mask(" + maskIndex + ").maskPath";
                     }
@@ -325,9 +338,10 @@ Install:
                     }
 
                     // エフェクト参照先の決定
+                    // レイヤー順序が変わっても対応できるようにレイヤー名で参照
                     var effectSourceExpr;
                     if (isMultiLayer) {
-                        effectSourceExpr = "comp(\"" + comp.name.replace(/"/g, "\\\"") + "\").layer(\"PathMotion_Null\")";
+                        effectSourceExpr = "comp(\"" + comp.name.replace(/"/g, "\\\"") + "\").layer(\"" + nullLayerName.replace(/"/g, "\\\"") + "\")";
                     } else {
                         effectSourceExpr = "thisLayer";
                     }
@@ -444,6 +458,24 @@ Install:
                             progressExpr = "effect(\"Path Progress\")(1).value / 100";
                         }
 
+                        // ヌルトランスフォーム参照のエクスプレッション
+                        // レイヤー順序が変わっても対応できるようにレイヤー名で参照
+                        var nullTransformExpr;
+                        if (isMultiLayer) {
+                            nullTransformExpr =
+                                "var nullLayer = comp(\"" + comp.name.replace(/"/g, "\\\"") + "\").layer(\"" + nullLayerName.replace(/"/g, "\\\"") + "\");\n" +
+                                "var nullPos = nullLayer.transform.position.value;\n" +
+                                "var nullScale = nullLayer.transform.scale.value;\n" +
+                                "var nullRot = nullLayer.transform.rotation.value * Math.PI / 180;\n" +
+                                "var nullAnchor = nullLayer.transform.anchorPoint.value;\n";
+                        } else {
+                            nullTransformExpr =
+                                "var nullPos = transform.position.value;\n" +
+                                "var nullScale = transform.scale.value;\n" +
+                                "var nullRot = transform.rotation.value * Math.PI / 180;\n" +
+                                "var nullAnchor = transform.anchorPoint.value;\n";
+                        }
+
                         var posExpr =
                             "// Mask Path Motion\n" +
                             "var ctrl = " + effectSourceExpr + ";\n" +
@@ -455,7 +487,28 @@ Install:
                             "var inT = maskShape.inTangents();\n" +
                             "var outT = maskShape.outTangents();\n" +
                             "var numVerts = verts.length;\n" +
-                            "var endPt = verts[numVerts - 1];\n" +
+                            "\n" +
+                            "// ヌルのトランスフォームを取得（外部スクリプト対応）\n" +
+                            nullTransformExpr +
+                            "\n" +
+                            "// ローカル座標をワールド座標に変換する関数\n" +
+                            "function localToWorld(pt) {\n" +
+                            "    // アンカーポイントからのオフセット\n" +
+                            "    var dx = pt[0] - nullAnchor[0];\n" +
+                            "    var dy = pt[1] - nullAnchor[1];\n" +
+                            "    // スケール適用\n" +
+                            "    dx *= nullScale[0] / 100;\n" +
+                            "    dy *= nullScale[1] / 100;\n" +
+                            "    // 回転適用\n" +
+                            "    var cos = Math.cos(nullRot);\n" +
+                            "    var sin = Math.sin(nullRot);\n" +
+                            "    var rx = dx * cos - dy * sin;\n" +
+                            "    var ry = dx * sin + dy * cos;\n" +
+                            "    // 位置オフセット\n" +
+                            "    return [nullPos[0] + rx, nullPos[1] + ry];\n" +
+                            "}\n" +
+                            "\n" +
+                            "var endPt = localToWorld(verts[numVerts - 1]);\n" +
                             "// 終点位置をPoint Controlから取得\n" +
                             "var endPos = " + endPosExpr + ";\n" +
                             "// オフセットを動的に計算（終点位置とパス終点の差分）\n" +
@@ -491,19 +544,37 @@ Install:
                             "var c1 = [p1[0] + inT[segIdx + 1][0], p1[1] + inT[segIdx + 1][1]];\n" +
                             "\n" +
                             "var pt = bezier(p0, c0, c1, p1, localT);\n" +
+                            "// ベジェ計算結果をワールド座標に変換\n" +
+                            "var worldPt = localToWorld(pt);\n" +
                             "\n" +
-                            "var finalPt = [pt[0] + offsetX, pt[1] + offsetY];\n" +
+                            "var finalPt = [worldPt[0] + offsetX, worldPt[1] + offsetY];\n" +
                             "var center = endPos;\n" +
                             "if (pathRot != 0) {\n" +
                             "    finalPt = rotPt(finalPt, center, pathRot);\n" +
                             "}\n" +
-                            "finalPt;";
+                            "// レイヤー位置の編集を反映（value - endPos で追加オフセットを計算）\n" +
+                            "var posOffset = [value[0] - endPos[0], value[1] - endPos[1]];\n" +
+                            "[finalPt[0] + posOffset[0], finalPt[1] + posOffset[1]];";
 
                         positionProp.expression = posExpr;
 
                         // Rotationエクスプレッション設定
                         targetLayer = comp.layer(targetLayerIndex);
                         var rotationProp = targetLayer.transform.rotation;
+
+                        // Rotation用のヌルトランスフォーム参照
+                        // レイヤー順序が変わっても対応できるようにレイヤー名で参照
+                        var nullRotTransformExpr;
+                        if (isMultiLayer) {
+                            nullRotTransformExpr =
+                                "var nullLayer = comp(\"" + comp.name.replace(/"/g, "\\\"") + "\").layer(\"" + nullLayerName.replace(/"/g, "\\\"") + "\");\n" +
+                                "var nullScale = nullLayer.transform.scale.value;\n" +
+                                "var nullRot = nullLayer.transform.rotation.value;\n";
+                        } else {
+                            nullRotTransformExpr =
+                                "var nullScale = transform.scale.value;\n" +
+                                "var nullRot = transform.rotation.value;\n";
+                        }
 
                         var rotExpr =
                             "// Mask Path Motion - Auto Orient\n" +
@@ -521,6 +592,9 @@ Install:
                             "var inT = maskShape.inTangents();\n" +
                             "var outT = maskShape.outTangents();\n" +
                             "var numVerts = verts.length;\n" +
+                            "\n" +
+                            "// ヌルのトランスフォームを取得（外部スクリプト対応）\n" +
+                            nullRotTransformExpr +
                             "\n" +
                             "function bezierTan(p0, c0, c1, p1, t) {\n" +
                             "    var u = 1 - t;\n" +
@@ -548,7 +622,9 @@ Install:
                             "var c1 = [p1[0] + inT[segIdx + 1][0], p1[1] + inT[segIdx + 1][1]];\n" +
                             "\n" +
                             "var tan = bezierTan(p0, c0, c1, p1, localT);\n" +
-                            "var tangentAngle = Math.atan2(tan[1], tan[0]) * 180 / Math.PI + pathRot;\n" +
+                            "// スケールを考慮して接線を変換（XとYで異なるスケールの場合）\n" +
+                            "tan = [tan[0] * nullScale[0] / 100, tan[1] * nullScale[1] / 100];\n" +
+                            "var tangentAngle = Math.atan2(tan[1], tan[0]) * 180 / Math.PI + pathRot + nullRot;\n" +
                             "\n" +
                             "// 終点付近（progress > 0.7）で元の回転値にブレンド\n" +
                             "var blendStart = 0.7;\n" +
