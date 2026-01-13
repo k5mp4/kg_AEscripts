@@ -28,7 +28,10 @@ Install:
     }
     function showLog() {
         if (DEBUG && debugLog.length > 0) {
-            alert("=== Debug Log ===\n" + debugLog.join("\n"));
+            $.writeln("=== Debug Log ===");
+            for (var i = 0; i < debugLog.length; i++) {
+                $.writeln(debugLog[i]);
+            }
         }
     }
     function clearLog() {
@@ -230,11 +233,7 @@ Install:
 
                     motherLayer.selected = true;
 
-                    alert("\"" + motherName + "\" レイヤーを作成しました。\n\n" +
-                        "5つのイージングプリセット (Ease_1〜5):\n" +
-                        "1: EaseInOut / 2: EaseOut / 3: EaseIn\n" +
-                        "4: Linear / 5: Strong\n\n" +
-                        "各スライダーのキーフレームを編集してカスタマイズできます。");
+                    log("Mother layer created: " + motherName);
 
                 } catch (e) {
                     alert("エラーが発生しました: " + e.toString());
@@ -461,16 +460,10 @@ Install:
 
                     log("=== Completed: " + appliedCount + " applied ===");
 
-                    var resultMsg = appliedCount + " 個のプロパティにMother Easeを適用しました。";
                     if (errorMessages.length > 0) {
-                        resultMsg += "\n\n警告:\n" + errorMessages.join("\n");
+                        showLog();
+                        alert("エラーが発生しました:\n" + errorMessages.join("\n"));
                     }
-                    resultMsg += "\n\n\"" + motherName + "\" レイヤーのスライダー制御で\nイージングを一括変更できます。";
-
-                    // デバッグログを表示
-                    showLog();
-
-                    alert(resultMsg);
 
                 } catch (e) {
                     log("FATAL ERROR: " + e.toString());
@@ -519,8 +512,6 @@ Install:
                             removedCount++;
                         }
                     }
-
-                    alert(removedCount + " 個のプロパティからMother Easeを削除しました。");
 
                 } catch (e) {
                     alert("エラーが発生しました: " + e.toString());
