@@ -4,12 +4,21 @@
 // 任意のプロパティに対応、エフェクトコントロールから調整可能 
 
 (function () {
-    var VERSION = "1.1.2";
+    var VERSION = "1.1.5";
     var DEBUG = true;
+    var DEBUG_LOG_LIMIT = 200;
+    var debugMessages = [];
+    var debugMessagesDropped = 0;
 
     function debugLog(message) {
         if (DEBUG) {
-            $.writeln("[CustomWiggle v" + VERSION + "] " + message);
+            var line = "[CustomWiggle v" + VERSION + "] " + message;
+            $.writeln(line);
+            if (debugMessages.length >= DEBUG_LOG_LIMIT) {
+                debugMessages.shift();
+                debugMessagesDropped++;
+            }
+            debugMessages.push(line);
         }
     }
 
@@ -101,6 +110,33 @@
             debugLog("Error finding property by path: " + e.toString());
             return null;
         }
+    }
+
+    // エフェクトプロパティの場合、所属するエフェクトグループを取得
+    function getEffectGroupFromProperty(prop) {
+        var current = prop;
+        while (current) {
+            var parent = null;
+            try {
+                parent = current.propertyGroup(1);
+            } catch (e) {
+                parent = null;
+            }
+
+            if (!parent) {
+                break;
+            }
+
+            try {
+                if (parent.matchName === "ADBE Effect Parade") {
+                    return current;
+                }
+            } catch (e2) { }
+
+            current = parent;
+        }
+
+        return null;
     }
 
     debugLog("Selected items count from comp.selectedProperties: " + selectedItems.length);
@@ -209,6 +245,17 @@
     var edgeInput = edgeGroup.add("edittext", undefined, "5");
     edgeInput.characters = 8;
 
+    // コンポジットオプション設定
+    var compositePanel = dialog.add("panel", undefined, "コンポジットオプション");
+    compositePanel.alignChildren = ["left", "top"];
+    compositePanel.margins = 15;
+    var compositeOpacityCheckbox = compositePanel.add(
+        "checkbox",
+        undefined,
+        "不透明度を 100 → 0 → 100 で変化させる"
+    );
+    compositeOpacityCheckbox.value = true;
+
     // モード切り替え時のラベル更新
     modeWiggle.onClick = function () {
         ampLabel.text = "端の振幅:";
@@ -242,6 +289,7 @@
     var maxAmpDefault = parseFloat(ampInput.text) || (isWiggleMode ? 50 : 360);
     var minAmpDefault = parseFloat(minAmpInput.text) || (isWiggleMode ? 5 : 30);
     var edgePercentDefault = parseFloat(edgeInput.text) || 5;
+    var enableCompositeOpacity = compositeOpacityCheckbox.value;
 
     // ユニークなヌル名を生成
     function generateUniqueNullName() {
@@ -313,6 +361,9 @@
     var nullLayerName = "";
     var controlNull = null;
     var processedLayers = {}; // layerIndex -> suffix map (両モードで使用)
+    var compositeApplied = {}; // layerIndex|effectIndex -> true
+    var compositeDisplayApplied = {}; // layerIndex|suffix|mode -> true
+    var compositeIssues = [];
 
     if (useNullControl) {
         nullLayerName = generateUniqueNullName();
@@ -448,6 +499,145 @@
         ].join('\n');
     }
 
+    // エフェクトのコンポジットオプション用の強度（100->0->100）
+    function createCompositeIntensityExpression(nullName, useNull, effectSuffix) {
+        var controlSource = useNull ? 'thisComp.layer("' + nullName + '")' : 'thisLayer';
+        var s = useNull ? "" : (effectSuffix || "");
+
+        return [
+            '// コントロールレイヤーからパラメータを取得',
+            'var ctrl = ' + controlSource + ';',
+            'var edgePercentRaw = ctrl.effect("端の範囲 (%)' + s + '")("スライダー");',
+            'var edgePercent = clamp(edgePercentRaw, 0, 50) / 100;',
+            'edgePercent = Math.max(edgePercent, 0.0001);',
+            '',
+            '// レイヤーのinPointとoutPointを基準に計算',
+            'var layerDuration = outPoint - inPoint;',
+            'var layerTime = time - inPoint;',
+            'var normalizedTime = layerTime / layerDuration;',
+            '',
+            '// 0-1にクランプ',
+            'var t = clamp(normalizedTime, 0, 1);',
+            '',
+            '// イージング関数（急な変化）',
+            'var curve = 3;',
+            'function easeOut(t) {',
+            '    return 1 - Math.pow(1 - t, curve);',
+            '}',
+            '',
+            'function easeIn(t) {',
+            '    return Math.pow(t, curve);',
+            '}',
+            '',
+            '// 100 -> 0 -> 100 で変化（端で急に落ち、中央は0を維持）',
+            'var intensity = 0;',
+            'if (t < edgePercent) {',
+            '    var p = t / edgePercent;',
+            '    intensity = 1 - easeOut(p);',
+            '} else if (t > 1 - edgePercent) {',
+            '    var p = (t - (1 - edgePercent)) / edgePercent;',
+            '    intensity = easeIn(p);',
+            '} else {',
+            '    intensity = 0;',
+            '}',
+            '',
+            '100 * intensity;'
+        ].join('\n');
+    }
+
+    // エフェクトのコンポジットオプション不透明度（100->0->100）
+    function createCompositeOpacityExpression(nullName, useNull, effectSuffix) {
+        return createCompositeIntensityExpression(nullName, useNull, effectSuffix);
+    }
+
+    // コンポジット端の範囲を表示
+    function createCompositeEdgeDisplayExpression(nullName, useNull, effectSuffix) {
+        var controlSource = useNull ? 'thisComp.layer("' + nullName + '")' : 'thisLayer';
+        var s = useNull ? "" : (effectSuffix || "");
+
+        return [
+            'var ctrl = ' + controlSource + ';',
+            'ctrl.effect("端の範囲 (%)' + s + '")("スライダー");'
+        ].join('\n');
+    }
+
+    // コンポジットオプションの不透明度プロパティを取得
+    function getCompositeOpacityProperty(effectGroup) {
+        if (!effectGroup) return null;
+
+        var compOptions = effectGroup.property("ADBE Effect Compositing Options");
+        if (!compOptions) {
+            compOptions = effectGroup.property("Compositing Options");
+        }
+        if (!compOptions) {
+            for (var i = 1; i <= effectGroup.numProperties; i++) {
+                var child = effectGroup.property(i);
+                if (child && child.matchName === "ADBE Effect Compositing Options") {
+                    compOptions = child;
+                    break;
+                }
+            }
+        }
+        if (!compOptions) {
+            return { opacityProp: null, reason: "Compositing Options not found" };
+        }
+
+        var opacityProp = compOptions.property("ADBE Effect Opacity");
+        if (!opacityProp) {
+            opacityProp = compOptions.property("Effect Opacity");
+        }
+        if (!opacityProp) {
+            for (var j = 1; j <= compOptions.numProperties; j++) {
+                var option = compOptions.property(j);
+                if (option && option.matchName === "ADBE Effect Opacity") {
+                    opacityProp = option;
+                    break;
+                }
+            }
+        }
+
+        if (!opacityProp) {
+            return { opacityProp: null, reason: "Effect Opacity not found" };
+        }
+
+        return { opacityProp: opacityProp, reason: "" };
+    }
+
+    // コンポジット用の表示コントロールをレイヤーに追加
+    function addCompositeDisplayControlsToLayer(layer, nullName, useNull, effectSuffix, includeEdgeDisplay) {
+        var effectsGroup = layer.property("ADBE Effect Parade");
+        if (!effectsGroup) return;
+
+        var suffix = useNull ? "" : (effectSuffix || "");
+        var intensityName = "コンポジット強度" + suffix;
+        var edgeDisplayName = "コンポジット端の範囲 (%)" + suffix;
+
+        function getOrAddSlider(name) {
+            var effect = effectsGroup.property(name);
+            if (!effect) {
+                effect = effectsGroup.addProperty("ADBE Slider Control");
+                effect.name = name;
+            }
+            return effect;
+        }
+
+        var intensityEffect = getOrAddSlider(intensityName);
+        var intensitySlider = intensityEffect.property("スライダー");
+        if (intensitySlider && intensitySlider.canSetExpression) {
+            intensitySlider.expression = createCompositeIntensityExpression(nullName, useNull, effectSuffix);
+            intensitySlider.expressionEnabled = true;
+        }
+
+        if (includeEdgeDisplay) {
+            var edgeEffect = getOrAddSlider(edgeDisplayName);
+            var edgeSlider = edgeEffect.property("スライダー");
+            if (edgeSlider && edgeSlider.canSetExpression) {
+                edgeSlider.expression = createCompositeEdgeDisplayExpression(nullName, useNull, effectSuffix);
+                edgeSlider.expressionEnabled = true;
+            }
+        }
+    }
+
     // 累積モード用エクスプレッション
     function createAccumulateExpression(seedValue, nullName, useNull, effectSuffix) {
         var controlSource = useNull ? 'thisComp.layer("' + nullName + '")' : 'thisLayer';
@@ -533,8 +723,8 @@
         // シード値を生成
         var seedValue = seedBase + (propData.layerIndex * 10000) + (p * 100);
 
+        var effectSuffix = processedLayers[propData.layerIndex] || "";
         try {
-            var effectSuffix = processedLayers[propData.layerIndex] || "";
             if (isWiggleMode) {
                 prop.expression = createWiggleExpression(seedValue, nullLayerName, useNullControl, effectSuffix);
             } else {
@@ -545,6 +735,56 @@
         } catch (e) {
             // エクスプレッション適用に失敗した場合はスキップ
             debugLog("Failed to apply expression to: " + propData.layerName + " - " + propData.propertyName + ". Error: " + e.toString());
+        }
+
+        // エフェクトプロパティなら、コンポジットオプションの不透明度も付与
+        if (enableCompositeOpacity) {
+            var effectGroup = getEffectGroupFromProperty(prop);
+            if (effectGroup) {
+                var effectIndex = (typeof effectGroup.propertyIndex === "number") ? effectGroup.propertyIndex : effectGroup.name;
+                var effectKey = propData.layerIndex + "|" + effectIndex;
+                var displayKey = propData.layerIndex + "|" + effectSuffix + "|" + (useNullControl ? "N" : "L");
+                if (!compositeDisplayApplied[displayKey]) {
+                    addCompositeDisplayControlsToLayer(
+                        targetLayer,
+                        nullLayerName,
+                        useNullControl,
+                        effectSuffix,
+                        useNullControl
+                    );
+                    compositeDisplayApplied[displayKey] = true;
+                }
+                if (!compositeApplied[effectKey]) {
+                    try {
+                        var opacityResult = getCompositeOpacityProperty(effectGroup);
+                        var opacityProp = opacityResult ? opacityResult.opacityProp : null;
+                        if (opacityProp && opacityProp.canSetExpression) {
+                            opacityProp.expression = createCompositeOpacityExpression(nullLayerName, useNullControl, effectSuffix);
+                            opacityProp.expressionEnabled = true;
+                            compositeApplied[effectKey] = true;
+                            debugLog("Applied composite opacity to effect: " + effectGroup.name + " on " + propData.layerName);
+                        } else {
+                            var reason = "";
+                            if (!opacityProp) {
+                                reason = opacityResult && opacityResult.reason ? opacityResult.reason : "Effect Opacity not found";
+                            } else if (!opacityProp.canSetExpression) {
+                                reason = "Effect Opacity cannot set expression";
+                            } else {
+                                reason = "Unknown reason";
+                            }
+                            debugLog("Composite opacity not found or not settable on effect: " + effectGroup.name + " (" + reason + ")");
+                            compositeIssues.push(
+                                propData.layerName + " / " + effectGroup.name + " : " + reason
+                            );
+                        }
+                    } catch (e2) {
+                        debugLog("Failed to apply composite opacity to effect: " + effectGroup.name + ". Error: " + e2.toString());
+                        compositeIssues.push(
+                            propData.layerName + " / " + effectGroup.name + " : " + e2.toString()
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -567,6 +807,16 @@
     }
 
     alert(message);
+
+    if (DEBUG && compositeIssues.length > 0) {
+        var logHeader = "コンポジットオプションのログ:\n" + compositeIssues.join("\n");
+        var debugHeader = "\n\n--- Debug Log ---\n";
+        if (debugMessagesDropped > 0) {
+            debugHeader += "(省略 " + debugMessagesDropped + " 件)\n";
+        }
+        debugHeader += debugMessages.join("\n");
+        alert(logHeader + debugHeader);
+    }
 
     app.endUndoGroup();
 })();
