@@ -73,7 +73,7 @@ Install:
             pathRotTxt.characters = 6;
             rotRow.add("statictext", undefined, "degrees");
 
-            var autoOrientChk = optPanel.add("checkbox", undefined, "Auto-Orient (接線方向に回転)");
+            var autoOrientChk = optPanel.add("checkbox", undefined, "Auto-Orient (\u63a5\u7dda\u65b9\u5411\u306b\u56de\u8ee2)");
             autoOrientChk.value = false;
 
             // Multi-Layer Options
@@ -147,14 +147,14 @@ Install:
 
                 var comp = getActiveComp();
                 if (!comp) {
-                    alert("コンポジションをアクティブにしてください。");
+                    alert("\u30b3\u30f3\u30dd\u30b8\u30b7\u30e7\u30f3\u3092\u30a2\u30af\u30c6\u30a3\u30d6\u306b\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                     return;
                 }
                 log("comp: " + comp.name);
 
                 var sel = comp.selectedLayers;
                 if (!sel || sel.length === 0) {
-                    alert("モーションを適用するレイヤーを選択してください。");
+                    alert("\u30e2\u30fc\u30b7\u30e7\u30f3\u3092\u9069\u7528\u3059\u308b\u30ec\u30a4\u30e4\u30fc\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                     return;
                 }
                 log("selected layers: " + sel.length);
@@ -173,7 +173,7 @@ Install:
                 var delayPerLayer = delayFrames / frameRate;
 
                 if (duration <= 0) {
-                    alert("Duration は0より大きくしてください。");
+                    alert("Duration \u306f0\u3088\u308a\u5927\u304d\u304f\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                     return;
                 }
 
@@ -210,7 +210,7 @@ Install:
                         }
 
                         if (!sourceLayer) {
-                            alert("PathMotion_Nullが選択されていません。\n\n先に「Create Path Null」ボタンでヌルを作成し、\nそのヌルと動かしたいレイヤーを一緒に選択してください。");
+                            alert("PathMotion_Null\u304c\u9078\u629e\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002\n\n\u5148\u306b\u300cCreate Path Null\u300d\u30dc\u30bf\u30f3\u3067\u30cc\u30eb\u3092\u4f5c\u6210\u3057\u3001\n\u305d\u306e\u30cc\u30eb\u3068\u52d5\u304b\u3057\u305f\u3044\u30ec\u30a4\u30e4\u30fc\u3092\u4e00\u7dd2\u306b\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                             app.endUndoGroup();
                             return;
                         }
@@ -218,7 +218,7 @@ Install:
                         // マスクの確認
                         var nullMasks = sourceLayer.property("ADBE Mask Parade");
                         if (!nullMasks || nullMasks.numProperties < maskIndex) {
-                            alert("マスク " + maskIndex + " がありません。（レイヤー: " + sourceLayer.name + "）");
+                            alert("\u30de\u30b9\u30af " + maskIndex + " \u304c\u3042\u308a\u307e\u305b\u3093\u3002\uFF08\u30ec\u30a4\u30e4\u30fc: " + sourceLayer.name + "\uFF09");
                             app.endUndoGroup();
                             return;
                         }
@@ -243,7 +243,7 @@ Install:
                         log("Target layers count: " + targetLayers.length);
 
                         if (targetLayers.length === 0) {
-                            alert("PathMotion Null以外のレイヤーも選択してください。");
+                            alert("PathMotion Null\u4ee5\u5916\u306e\u30ec\u30a4\u30e4\u30fc\u3082\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                             app.endUndoGroup();
                             return;
                         }
@@ -253,7 +253,7 @@ Install:
                         var layer = sel[0];
                         var masks = layer.property("ADBE Mask Parade");
                         if (!masks || masks.numProperties < maskIndex) {
-                            alert("選択レイヤーにマスク " + maskIndex + " が見つかりません。");
+                            alert("\u9078\u629e\u30ec\u30a4\u30e4\u30fc\u306b\u30de\u30b9\u30af " + maskIndex + " \u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002");
                             app.endUndoGroup();
                             return;
                         }
@@ -476,10 +476,10 @@ Install:
                                 "var nullAnchor = transform.anchorPoint.value;\n";
                         }
 
-                        var posExpr =
+                        var posExprBase =
                             "// Mask Path Motion\n" +
                             "var ctrl = " + effectSourceExpr + ";\n" +
-                            "// 各レイヤー個別のProgress（グラフエディタでイージング編集可能）\n" +
+                            "// \u5404\u30ec\u30a4\u30e4\u30fc\u500b\u5225\u306eProgress\uff08\u30b0\u30e9\u30d5\u30a8\u30c7\u30a3\u30bf\u3067\u30a4\u30fc\u30b8\u30f3\u30b0\u7de8\u96c6\u53ef\u80fd\uff09\n" +
                             "var progress = Math.max(0, Math.min(1, " + progressExpr + "));\n" +
                             "var pathRot = (ctrl.effect(\"Path Rotation\")(1).value + " + layerRotOffset + ") * Math.PI / 180;\n" +
                             "var maskShape = " + maskSourceExpr + ";\n" +
@@ -488,30 +488,30 @@ Install:
                             "var outT = maskShape.outTangents();\n" +
                             "var numVerts = verts.length;\n" +
                             "\n" +
-                            "// ヌルのトランスフォームを取得（外部スクリプト対応）\n" +
+                            "// \u30cc\u30eb\u306e\u30c8\u30e9\u30f3\u30b9\u30d5\u30a9\u30fc\u30e0\u3092\u53d6\u5f97\uff08\u5916\u90e8\u30b9\u30af\u30ea\u30d7\u30c8\u5bfe\u5fdc\uff09\n" +
                             nullTransformExpr +
                             "\n" +
-                            "// ローカル座標をワールド座標に変換する関数\n" +
+                            "// \u30ed\u30fc\u30ab\u30eb\u5ea7\u6a19\u3092\u30ef\u30fc\u30eb\u30c9\u5ea7\u6a19\u306b\u5909\u63db\u3059\u308b\u95a2\u6570\n" +
                             "function localToWorld(pt) {\n" +
-                            "    // アンカーポイントからのオフセット\n" +
+                            "    // \u30a2\u30f3\u30ab\u30fc\u30dd\u30a4\u30f3\u30c8\u304b\u3089\u306e\u30aa\u30d5\u30bb\u30c3\u30c8\n" +
                             "    var dx = pt[0] - nullAnchor[0];\n" +
                             "    var dy = pt[1] - nullAnchor[1];\n" +
-                            "    // スケール適用\n" +
+                            "    // \u30b9\u30b1\u30fc\u30eb\u9069\u7528\n" +
                             "    dx *= nullScale[0] / 100;\n" +
                             "    dy *= nullScale[1] / 100;\n" +
-                            "    // 回転適用\n" +
+                            "    // \u56de\u8ee2\u9069\u7528\n" +
                             "    var cos = Math.cos(nullRot);\n" +
                             "    var sin = Math.sin(nullRot);\n" +
                             "    var rx = dx * cos - dy * sin;\n" +
                             "    var ry = dx * sin + dy * cos;\n" +
-                            "    // 位置オフセット\n" +
+                            "    // \u4f4d\u7f6e\u30aa\u30d5\u30bb\u30c3\u30c8\n" +
                             "    return [nullPos[0] + rx, nullPos[1] + ry];\n" +
                             "}\n" +
                             "\n" +
                             "var endPt = localToWorld(verts[numVerts - 1]);\n" +
-                            "// 終点位置をPoint Controlから取得\n" +
+                            "// \u7d42\u70b9\u4f4d\u7f6e\u3092Point Control\u304b\u3089\u53d6\u5f97\n" +
                             "var endPos = " + endPosExpr + ";\n" +
-                            "// オフセットを動的に計算（終点位置とパス終点の差分）\n" +
+                            "// \u30aa\u30d5\u30bb\u30c3\u30c8\u3092\u52d5\u7684\u306b\u8a08\u7b97\uff08\u7d42\u70b9\u4f4d\u7f6e\u3068\u30d1\u30b9\u7d42\u70b9\u306e\u5dee\u5206\uff09\n" +
                             "var offsetX = endPos[0] - endPt[0];\n" +
                             "var offsetY = endPos[1] - endPt[1];\n" +
                             "\n" +
@@ -544,7 +544,7 @@ Install:
                             "var c1 = [p1[0] + inT[segIdx + 1][0], p1[1] + inT[segIdx + 1][1]];\n" +
                             "\n" +
                             "var pt = bezier(p0, c0, c1, p1, localT);\n" +
-                            "// ベジェ計算結果をワールド座標に変換\n" +
+                            "// \u30d9\u30b8\u30a7\u8a08\u7b97\u7d50\u679c\u3092\u30ef\u30fc\u30eb\u30c9\u5ea7\u6a19\u306b\u5909\u63db\n" +
                             "var worldPt = localToWorld(pt);\n" +
                             "\n" +
                             "var finalPt = [worldPt[0] + offsetX, worldPt[1] + offsetY];\n" +
@@ -552,11 +552,41 @@ Install:
                             "if (pathRot != 0) {\n" +
                             "    finalPt = rotPt(finalPt, center, pathRot);\n" +
                             "}\n" +
-                            "// レイヤー位置の編集を反映（value - endPos で追加オフセットを計算）\n" +
+                            "";
+
+                        var posExpr =
+                            posExprBase +
+                            "// \u30ec\u30a4\u30e4\u30fc\u4f4d\u7f6e\u306e\u7de8\u96c6\u3092\u53cd\u6620\uff08value - endPos \u3067\u8ffd\u52a0\u30aa\u30d5\u30bb\u30c3\u30c8\u3092\u8a08\u7b97\uff09\n" +
                             "var posOffset = [value[0] - endPos[0], value[1] - endPos[1]];\n" +
                             "[finalPt[0] + posOffset[0], finalPt[1] + posOffset[1]];";
 
-                        positionProp.expression = posExpr;
+                        if (positionProp.dimensionsSeparated) {
+                            var transformGroup = targetLayer.property("ADBE Transform Group");
+                            var posXProp = transformGroup.property("ADBE Position_0");
+                            var posYProp = transformGroup.property("ADBE Position_1");
+                            if (posXProp && posYProp) {
+                                var posXExpr =
+                                    posExprBase +
+                                    "// Separate Dimensions (X)\n" +
+                                    "var posOffset = value - endPos[0];\n" +
+                                    "finalPt[0] + posOffset;";
+                                var posYExpr =
+                                    posExprBase +
+                                    "// Separate Dimensions (Y)\n" +
+                                    "var posOffset = value - endPos[1];\n" +
+                                    "finalPt[1] + posOffset;";
+                                posXProp.expression = posXExpr;
+                                posYProp.expression = posYExpr;
+                            }
+                            if (targetLayer.threeDLayer) {
+                                var posZProp = transformGroup.property("ADBE Position_2");
+                                if (posZProp) {
+                                    posZProp.expression = "value;";
+                                }
+                            }
+                        } else {
+                            positionProp.expression = posExpr;
+                        }
 
                         // Rotationエクスプレッション設定
                         targetLayer = comp.layer(targetLayerIndex);
@@ -583,17 +613,17 @@ Install:
                             "if (autoOrientEnabled == 0) {\n" +
                             "    value;\n" +
                             "} else {\n" +
-                            "// 各レイヤー個別のProgress\n" +
+                            "// \u5404\u30ec\u30a4\u30e4\u30fc\u500b\u5225\u306eProgress\n" +
                             "var progress = Math.max(0, Math.min(1, " + progressExpr + "));\n" +
                             "var pathRot = ctrl.effect(\"Path Rotation\")(1).value + " + layerRotOffset + ";\n" +
-                            "var origRot = " + origRotation + "; // 元の回転値\n" +
+                            "var origRot = " + origRotation + "; // \u5143\u306e\u56de\u8ee2\u5024\n" +
                             "var maskShape = " + maskSourceExpr + ";\n" +
                             "var verts = maskShape.points();\n" +
                             "var inT = maskShape.inTangents();\n" +
                             "var outT = maskShape.outTangents();\n" +
                             "var numVerts = verts.length;\n" +
                             "\n" +
-                            "// ヌルのトランスフォームを取得（外部スクリプト対応）\n" +
+                            "// \u30cc\u30eb\u306e\u30c8\u30e9\u30f3\u30b9\u30d5\u30a9\u30fc\u30e0\u3092\u53d6\u5f97\uff08\u5916\u90e8\u30b9\u30af\u30ea\u30d7\u30c8\u5bfe\u5fdc\uff09\n" +
                             nullRotTransformExpr +
                             "\n" +
                             "function bezierTan(p0, c0, c1, p1, t) {\n" +
@@ -604,7 +634,7 @@ Install:
                             "    ];\n" +
                             "}\n" +
                             "\n" +
-                            "// スムーズステップ関数（滑らかなブレンド）\n" +
+                            "// \u30b9\u30e0\u30fc\u30ba\u30b9\u30c6\u30c3\u30d7\u95a2\u6570\uff08\u6ed1\u3089\u304b\u306a\u30d6\u30ec\u30f3\u30c9\uff09\n" +
                             "function smoothstep(t) {\n" +
                             "    return t * t * (3 - 2 * t);\n" +
                             "}\n" +
@@ -622,16 +652,16 @@ Install:
                             "var c1 = [p1[0] + inT[segIdx + 1][0], p1[1] + inT[segIdx + 1][1]];\n" +
                             "\n" +
                             "var tan = bezierTan(p0, c0, c1, p1, localT);\n" +
-                            "// スケールを考慮して接線を変換（XとYで異なるスケールの場合）\n" +
+                            "// \u30b9\u30b1\u30fc\u30eb\u3092\u8003\u616e\u3057\u3066\u63a5\u7dda\u3092\u5909\u63db\uff08X\u3068Y\u3067\u7570\u306a\u308b\u30b9\u30b1\u30fc\u30eb\u306e\u5834\u5408\uff09\n" +
                             "tan = [tan[0] * nullScale[0] / 100, tan[1] * nullScale[1] / 100];\n" +
                             "var tangentAngle = Math.atan2(tan[1], tan[0]) * 180 / Math.PI + pathRot + nullRot;\n" +
                             "\n" +
-                            "// 終点付近（progress > 0.7）で元の回転値にブレンド\n" +
+                            "// \u7d42\u70b9\u4ed8\u8fd1\uff08progress > 0.7\uff09\u3067\u5143\u306e\u56de\u8ee2\u5024\u306b\u30d6\u30ec\u30f3\u30c9\n" +
                             "var blendStart = 0.7;\n" +
                             "if (progress > blendStart) {\n" +
                             "    var blendT = (progress - blendStart) / (1 - blendStart);\n" +
                             "    blendT = smoothstep(blendT);\n" +
-                            "    // 角度の最短距離でブレンド\n" +
+                            "    // \u89d2\u5ea6\u306e\u6700\u77ed\u8ddd\u96e2\u3067\u30d6\u30ec\u30f3\u30c9\n" +
                             "    var diff = origRot - tangentAngle;\n" +
                             "    while (diff > 180) diff -= 360;\n" +
                             "    while (diff < -180) diff += 360;\n" +
@@ -644,12 +674,12 @@ Install:
                         rotationProp.expression = rotExpr;
                     }
 
-                    var resultMsg = "モーションを適用しました。\n\n";
-                    resultMsg += "・Path Progress: 進行度スライダー（0-100%）\n";
-                    resultMsg += "・Path Rotation: パスの回転角度\n";
-                    resultMsg += "・Auto-Orient: 接線方向に回転\n";
+                    var resultMsg = "\u30e2\u30fc\u30b7\u30e7\u30f3\u3092\u9069\u7528\u3057\u307e\u3057\u305f\u3002\n\n";
+                    resultMsg += "\u30fbPath Progress: \u9032\u884c\u5ea6\u30b9\u30e9\u30a4\u30c0\u30fc\uff080-100%\uff09\n";
+                    resultMsg += "\u30fbPath Rotation: \u30d1\u30b9\u306e\u56de\u8ee2\u89d2\u5ea6\n";
+                    resultMsg += "\u30fbAuto-Orient: \u63a5\u7dda\u65b9\u5411\u306b\u56de\u8ee2\n";
                     if (isMultiLayer) {
-                        resultMsg += "\n適用レイヤー数: " + numTargets;
+                        resultMsg += "\n\u9069\u7528\u30ec\u30a4\u30e4\u30fc\u6570: " + numTargets;
                     }
 
                     alert(resultMsg);
@@ -657,7 +687,7 @@ Install:
                 } catch (e) {
                     log("ERROR: " + e.toString());
                     showLog();
-                    alert("エラーが発生しました: " + e.toString() + "\n\nデバッグログをコンソールに出力しました。");
+                    alert("\u30a8\u30e9\u30fc\u304c\u767a\u751f\u3057\u307e\u3057\u305f: " + e.toString() + "\n\n\u30c7\u30d0\u30c3\u30b0\u30ed\u30b0\u3092\u30b3\u30f3\u30bd\u30fc\u30eb\u306b\u51fa\u529b\u3057\u307e\u3057\u305f\u3002");
                 }
 
                 app.endUndoGroup();
@@ -667,7 +697,7 @@ Install:
             createNullBtn.onClick = function () {
                 var comp = getActiveComp();
                 if (!comp) {
-                    alert("コンポジションをアクティブにしてください。");
+                    alert("\u30b3\u30f3\u30dd\u30b8\u30b7\u30e7\u30f3\u3092\u30a2\u30af\u30c6\u30a3\u30d6\u306b\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                     return;
                 }
 
@@ -714,13 +744,13 @@ Install:
                     nullLayer = comp.layer(nullLayerIndex);
                     nullLayer.selected = true;
 
-                    alert("PathMotion_Nullを作成しました。\n\n" +
-                        "1. マスクパスを編集してパスの形状を調整\n" +
-                        "2. PathMotion_Nullと動かしたいレイヤーを選択\n" +
-                        "3. Apply Motionを実行");
+                    alert("PathMotion_Null\u3092\u4f5c\u6210\u3057\u307e\u3057\u305f\u3002\n\n" +
+                        "1. \u30de\u30b9\u30af\u30d1\u30b9\u3092\u7de8\u96c6\u3057\u3066\u30d1\u30b9\u306e\u5f62\u72b6\u3092\u8abf\u6574\n" +
+                        "2. PathMotion_Null\u3068\u52d5\u304b\u3057\u305f\u3044\u30ec\u30a4\u30e4\u30fc\u3092\u9078\u629e\n" +
+                        "3. Apply Motion\u3092\u5b9f\u884c");
 
                 } catch (e) {
-                    alert("エラーが発生しました: " + e.toString());
+                    alert("\u30a8\u30e9\u30fc\u304c\u767a\u751f\u3057\u307e\u3057\u305f: " + e.toString());
                 }
 
                 app.endUndoGroup();
@@ -735,13 +765,13 @@ Install:
             openPathBtn.onClick = function () {
                 var comp = getActiveComp();
                 if (!comp) {
-                    alert("コンポジションをアクティブにしてください。");
+                    alert("\u30b3\u30f3\u30dd\u30b8\u30b7\u30e7\u30f3\u3092\u30a2\u30af\u30c6\u30a3\u30d6\u306b\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                     return;
                 }
 
                 var sel = comp.selectedLayers;
                 if (!sel || sel.length === 0) {
-                    alert("レイヤーを選択してください。");
+                    alert("\u30ec\u30a4\u30e4\u30fc\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                     return;
                 }
 
@@ -769,20 +799,20 @@ Install:
                 }
 
                 app.endUndoGroup();
-                alert("マスクパスをオープンパスにしました。");
+                alert("\u30de\u30b9\u30af\u30d1\u30b9\u3092\u30aa\u30fc\u30d7\u30f3\u30d1\u30b9\u306b\u3057\u307e\u3057\u305f\u3002");
             };
 
             // Select Mask Button - マスクパスを選択状態にする
             selectMaskBtn.onClick = function () {
                 var comp = getActiveComp();
                 if (!comp) {
-                    alert("コンポジションをアクティブにしてください。");
+                    alert("\u30b3\u30f3\u30dd\u30b8\u30b7\u30e7\u30f3\u3092\u30a2\u30af\u30c6\u30a3\u30d6\u306b\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                     return;
                 }
 
                 var sel = comp.selectedLayers;
                 if (!sel || sel.length !== 1) {
-                    alert("単一レイヤーを選択してください。");
+                    alert("\u5358\u4e00\u30ec\u30a4\u30e4\u30fc\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
                     return;
                 }
 
@@ -791,7 +821,7 @@ Install:
                 var masks = layer.property("ADBE Mask Parade");
 
                 if (!masks || masks.numProperties < maskIndex) {
-                    alert("マスク " + maskIndex + " が見つかりません。");
+                    alert("\u30de\u30b9\u30af " + maskIndex + " \u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002");
                     return;
                 }
 
@@ -801,7 +831,7 @@ Install:
                 // マスクパスを選択
                 maskPath.selected = true;
 
-                alert("マスク " + maskIndex + " のパスを選択しました。");
+                alert("\u30de\u30b9\u30af " + maskIndex + " \u306e\u30d1\u30b9\u3092\u9078\u629e\u3057\u307e\u3057\u305f\u3002");
             };
 
             // Resize behavior
