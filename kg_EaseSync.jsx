@@ -44,7 +44,12 @@ Install:
         { name: "Ease_2", inSpeed: 0, inInfluence: 0.1, outSpeed: 0, outInfluence: 75 },
         { name: "Ease_3", inSpeed: 0, inInfluence: 75, outSpeed: 0, outInfluence: 0.1 },
         { name: "Ease_4", inSpeed: 0, inInfluence: 0.1, outSpeed: 0, outInfluence: 0.1 },
-        { name: "Ease_5", inSpeed: 0, inInfluence: 80, outSpeed: 0, outInfluence: 80 }
+        { name: "Ease_5", inSpeed: 0, inInfluence: 80, outSpeed: 0, outInfluence: 80 },
+        { name: "Ease_6", inSpeed: 0, inInfluence: 50, outSpeed: 0, outInfluence: 50 },
+        { name: "Ease_7", inSpeed: 0, inInfluence: 90, outSpeed: 0, outInfluence: 90 },
+        { name: "Ease_8", inSpeed: 0, inInfluence: 0.1, outSpeed: 0, outInfluence: 50 },
+        { name: "Ease_9", inSpeed: 0, inInfluence: 50, outSpeed: 0, outInfluence: 0.1 },
+        { name: "Ease_10", inSpeed: 0, inInfluence: 66.67, outSpeed: 0, outInfluence: 66.67 }
     ];
 
     function buildUI(thisObj) {
@@ -94,7 +99,8 @@ Install:
             easeRow.orientation = "row";
             easeRow.add("statictext", undefined, "Default Ease:");
             var easeDropdown = easeRow.add("dropdownlist", undefined, [
-                "Ease_1", "Ease_2", "Ease_3", "Ease_4", "Ease_5"
+                "Ease_1", "Ease_2", "Ease_3", "Ease_4", "Ease_5",
+                "Ease_6", "Ease_7", "Ease_8", "Ease_9", "Ease_10"
             ]);
             easeDropdown.selection = 0;
 
@@ -208,7 +214,7 @@ Install:
 
                     var fx = motherLayer.property("ADBE Effect Parade");
 
-                    // 5つのイージングスライダーを作成
+                    // 10個のイージングスライダーを作成
                     for (var i = 0; i < EASE_PRESETS.length; i++) {
                         var preset = EASE_PRESETS[i];
                         var slider = fx.addProperty("ADBE Slider Control");
@@ -225,11 +231,6 @@ Install:
                         sliderProp.setTemporalEaseAtKey(1, [easeIn], [easeOut]);
                         sliderProp.setTemporalEaseAtKey(2, [easeIn], [easeOut]);
                     }
-
-                    // 現在使用中のイージング番号を示すスライダー（参照用）
-                    var activeSlider = fx.addProperty("ADBE Slider Control");
-                    activeSlider.name = "Active Ease";
-                    fx.property("Active Ease").property("スライダー").setValue(1);
 
                     motherLayer.selected = true;
 
@@ -318,20 +319,12 @@ Install:
                             log("  -> Using default keys: " + selectedKeys.join(","));
                         }
 
-                        // 最初と最後の選択キーを取得
-                        var keyIndex1 = selectedKeys[0];
-                        var keyIndex2 = selectedKeys[selectedKeys.length - 1];
-
-                        if (keyIndex1 === keyIndex2) {
-                            errorMessages.push(prop.name + ": 2つの異なるキーフレームを選択してください。");
-                            log("  -> Skipped: same key selected");
+                        // 選択キーが2つ未満の場合はスキップ
+                        if (selectedKeys.length < 2) {
+                            errorMessages.push(prop.name + ": 2つ以上のキーフレームを選択してください。");
+                            log("  -> Skipped: less than 2 keys selected");
                             continue;
                         }
-
-                        // キー時間を取得
-                        var keyTime1 = prop.keyTime(keyIndex1);
-                        var keyTime2 = prop.keyTime(keyIndex2);
-                        log("  keyTime1: " + keyTime1 + ", keyTime2: " + keyTime2);
 
                         // レイヤーを取得
                         var layer = getLayerFromProperty(prop);
@@ -346,16 +339,25 @@ Install:
                         var propPath = getPropertyPath(prop);
                         log("  propPath: " + propPath.join(" > "));
 
-                        propDataList.push({
-                            layerIndex: layer.index,
-                            propPath: propPath,
-                            propName: prop.name,
-                            keyIndex1: keyIndex1,
-                            keyIndex2: keyIndex2,
-                            keyTime1: keyTime1,
-                            keyTime2: keyTime2
-                        });
-                        log("  -> Added to propDataList");
+                        // 連続するキーフレームペアごとにpropDataListに追加
+                        for (var ki = 0; ki < selectedKeys.length - 1; ki++) {
+                            var keyIndex1 = selectedKeys[ki];
+                            var keyIndex2 = selectedKeys[ki + 1];
+                            var keyTime1 = prop.keyTime(keyIndex1);
+                            var keyTime2 = prop.keyTime(keyIndex2);
+                            log("  keyPair: " + keyIndex1 + "-" + keyIndex2 + " (time: " + keyTime1 + "-" + keyTime2 + ")");
+
+                            propDataList.push({
+                                layerIndex: layer.index,
+                                propPath: propPath,
+                                propName: prop.name,
+                                keyIndex1: keyIndex1,
+                                keyIndex2: keyIndex2,
+                                keyTime1: keyTime1,
+                                keyTime2: keyTime2
+                            });
+                            log("  -> Added keyPair to propDataList");
+                        }
                     }
 
                     log("propDataList.length: " + propDataList.length);
@@ -531,7 +533,7 @@ Install:
                     "    var t1_" + keyIndex1 + "_" + keyIndex2 + " = key(" + keyIndex1 + ").time;",
                     "    var t2_" + keyIndex1 + "_" + keyIndex2 + " = key(" + keyIndex2 + ").time;",
                     "    if (time >= t1_" + keyIndex1 + "_" + keyIndex2 + " && time <= t2_" + keyIndex1 + "_" + keyIndex2 + ") {",
-                    "        var easeNum = Math.round(clamp(thisLayer.effect(\"" + sliderName + "\")(1).value, 1, 5));",
+                    "        var easeNum = Math.round(clamp(thisLayer.effect(\"" + sliderName + "\")(1).value, 1, 10));",
                     "        var easeName = \"Ease_\" + easeNum;",
                     "        var slider = motherLayer.effect(easeName)(\"スライダー\");",
                     "        var P1 = key(" + keyIndex1 + ").value;",
