@@ -232,38 +232,46 @@ Usage:
             "var result = 0;\n" +
             "\n" +
             "if (showFillOverride == 1) {\n" +
-            "    // 塗りを常に表示モード: 塗り→線→塗り(常時)→線→塗り\n" +
-            "    // outPoint: 4F前~2F前 線（塗り非表示）、2F前~end 塗り\n" +
-            "    if (outFrame < 4 && outFrame >= 2) {\n" +
+            "    // 塗りを常に表示モード: 塗り→線→塗り常時\n" +
+            "    // inFrame < 0: まだアニメーション開始前\n" +
+            "    if (inFrame < 0) {\n" +
+            "        result = 0;\n" +
+            "    }\n" +
+            "    // outPoint: 4F前~2F前 線、2F前~end 塗り（退場アニメ）\n" +
+            "    else if (outFrame < 4 && outFrame >= 2) {\n" +
             "        result = 0; // 線を表示（塗りは非表示）\n" +
             "    } else if (outFrame < 2) {\n" +
             "        result = 100; // 塗り表示\n" +
             "    }\n" +
-            "    // inPoint: 0-2F 塗り、2-4F 線（塗り非表示）\n" +
+            "    // inPoint: 0-2F 塗り、2-4F 線\n" +
             "    else if (inFrame < 2) {\n" +
             "        result = 100; // 塗り表示\n" +
             "    } else if (inFrame < 4) {\n" +
             "        result = 0; // 線を表示（塗りは非表示）\n" +
             "    }\n" +
-            "    // 中間: 塗り常時表示\n" +
+            "    // 中間（登場アニメ完了後）: 塗り常時表示\n" +
             "    else {\n" +
             "        result = 100;\n" +
             "    }\n" +
             "} else if (showStrokeOverride == 1) {\n" +
-            "    // 線を常に表示モード: 線→塗り→線(常時)→塗り→線\n" +
-            "    // outPoint: 4F前~2F前 塗り（線非表示）、2F前~end 線\n" +
-            "    if (outFrame < 4 && outFrame >= 2) {\n" +
+            "    // 線を常に表示モード: 線→塗り→線常時\n" +
+            "    // inFrame < 0: まだアニメーション開始前\n" +
+            "    if (inFrame < 0) {\n" +
+            "        result = 0;\n" +
+            "    }\n" +
+            "    // outPoint: 4F前~2F前 塗り、2F前~end 線（退場アニメ）\n" +
+            "    else if (outFrame < 4 && outFrame >= 2) {\n" +
             "        result = 100; // 塗り表示\n" +
             "    } else if (outFrame < 2) {\n" +
             "        result = 0; // 線を表示（塗りは非表示）\n" +
             "    }\n" +
-            "    // inPoint: 0-2F 線（塗り非表示）、2-4F 塗り\n" +
+            "    // inPoint: 0-2F 線、2-4F 塗り\n" +
             "    else if (inFrame < 2) {\n" +
             "        result = 0; // 線を表示（塗りは非表示）\n" +
             "    } else if (inFrame < 4) {\n" +
             "        result = 100; // 塗り表示\n" +
             "    }\n" +
-            "    // 中間: 塗り非表示（線のみ）\n" +
+            "    // 中間（登場アニメ完了後）: 塗り非表示（線のみ）\n" +
             "    else {\n" +
             "        result = 0;\n" +
             "    }\n" +
@@ -321,27 +329,35 @@ Usage:
             "var result = 0;\n" +
             "\n" +
             "if (showFillOverride == 1) {\n" +
-            "    // 塗りを常に表示モード: 塗り→線→塗り(常時)→線→塗り\n" +
-            "    // outPoint: 4F前~2F前 線表示、2F前~end 塗り（線非表示）\n" +
-            "    if (outFrame < 4 && outFrame >= 2) {\n" +
+            "    // 塗りを常に表示モード: 塗り→線→塗り常時（線は0-2Fは非表示、2-4Fは表示）\n" +
+            "    // inFrame < 0: まだアニメーション開始前\n" +
+            "    if (inFrame < 0) {\n" +
+            "        result = 0;\n" +
+            "    }\n" +
+            "    // outPoint: 4F前~2F前 線表示、2F前~end 塗り（退場アニメ）\n" +
+            "    else if (outFrame < 4 && outFrame >= 2) {\n" +
             "        result = 100; // 線表示\n" +
             "    } else if (outFrame < 2) {\n" +
-            "        result = 0; // 塗りを表示（線は非表示）\n" +
+            "        result = 0; // 塗り表示（線は非表示）\n" +
             "    }\n" +
             "    // inPoint: 0-2F 塗り（線非表示）、2-4F 線表示\n" +
             "    else if (inFrame < 2) {\n" +
-            "        result = 0; // 塗りを表示（線は非表示）\n" +
+            "        result = 0; // 塗り表示（線は非表示）\n" +
             "    } else if (inFrame < 4) {\n" +
             "        result = 100; // 線表示\n" +
             "    }\n" +
-            "    // 中間: 線非表示（塗りのみ）\n" +
+            "    // 中間（登場アニメ完了後）: 線非表示（塗りのみ）\n" +
             "    else {\n" +
             "        result = 0;\n" +
             "    }\n" +
             "} else if (showStrokeOverride == 1) {\n" +
-            "    // 線を常に表示モード: 線→塗り→線(常時)→塗り→線\n" +
-            "    // outPoint: 4F前~2F前 塗り（線非表示）、2F前~end 線表示\n" +
-            "    if (outFrame < 4 && outFrame >= 2) {\n" +
+            "    // 線を常に表示モード: 線→塗り→線常時\n" +
+            "    // inFrame < 0: まだアニメーション開始前\n" +
+            "    if (inFrame < 0) {\n" +
+            "        result = 0;\n" +
+            "    }\n" +
+            "    // outPoint: 4F前~2F前 塗り（線非表示）、2F前~end 線（退場アニメ）\n" +
+            "    else if (outFrame < 4 && outFrame >= 2) {\n" +
             "        result = 0; // 塗りを表示（線は非表示）\n" +
             "    } else if (outFrame < 2) {\n" +
             "        result = 100; // 線表示\n" +
@@ -352,7 +368,7 @@ Usage:
             "    } else if (inFrame < 4) {\n" +
             "        result = 0; // 塗りを表示（線は非表示）\n" +
             "    }\n" +
-            "    // 中間: 線常時表示\n" +
+            "    // 中間（登場アニメ完了後）: 線常時表示\n" +
             "    else {\n" +
             "        result = 100;\n" +
             "    }\n" +
