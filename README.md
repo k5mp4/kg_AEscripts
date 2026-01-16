@@ -3,7 +3,7 @@
 **ke-go 自作の After Effects 用スクリプト集**
 
 各スクリプトの詳細なドキュメントは [Docs](./Docs/) フォルダを参照してください。
-
+claude君に作らせているのでだいぶ雑です。適宜修正して使ってね
 ---
 
 ## 📦 スクリプト一覧
@@ -16,6 +16,9 @@
 | [kg_EaseSync.jsx](#kg_easesyncjsx) | v1.2.0 | マザーレイヤーによるイージング同期 |
 | [kg_BoundingBoxLines.jsx](#kg_boundingboxlinesjsx) | v1.2 | バウンディングボックス沿いの線 |
 | [kg_pathmotion.jsx](#kg_pathmotionjsx) | v2.1.0 | マスクパスに沿った移動 |
+| [kg_smoothease.jsx](#kg_smootheasejsx) | v1.3.0 | キーフレームイージングの自動平滑化 |
+| [kg_shapeflash.jsx](#kg_shapeflashjsx) | v1.0.0 | シェイプフラッシュアニメーション |
+
 
 ---
 
@@ -142,31 +145,38 @@
 
 ---
 
-## 🐛 既知の問題と対策
+### kg_smoothease.jsx
 
-### Object Invalid エラー
+**キーフレームイージングの自動平滑化** - [詳細ドキュメント](./Docs/kg_smoothease_README.md)
 
-After Effects の ExtendScript では、DOM 操作後に参照が無効化されることがあります。本スクリプト集では以下の対策を実装しています：
+キーフレーム間のテンポラルイージングを自動的に滑らかに接続します。
 
-- DOM 操作後に参照を再取得
-- プロパティパスによる参照管理
-- エラー発生時のデバッグログ出力
+**主な機能:**
+- ⚡ UIなし即座実行
+- 🔄 C1連続性（接線連続）を自動実現
+- 📐 元のハンドル長さを維持
+- 📈 最適角度の自動計算
 
-詳細: [ExtendScript_ObjectInvalidError.md](../ExtendScript_ObjectInvalidError.md)
-
----
-
-## 📄 ライセンス
-
-すべてのスクリプトはフリーで使用できます。
+```
+使い方: キーフレーム選択 → スクリプト実行
+```
 
 ---
 
-## 🔄 更新履歴
+### kg_shapeflash.jsx
 
-### 2024-01
-- **kg_autorect.jsx v1.5.0**: Pre-Compose機能追加、Layer Control対応
-- **kg_CustomWiggleProperty.jsx v1.1.2**: Object Invalid エラー対策
+**シェイプフラッシュアニメーション** - [詳細ドキュメント](./Docs/kg_shapeflash_README.md)
 
-### 2023
-- 初期リリース
+シェイプレイヤーにモーショングラフィックス用のフラッシュアニメーションを適用します。
+
+**主な機能:**
+- ⚡ inPoint: 線→塗り→消える / outPoint: 塗り→線 のアニメーション
+- 🎛️ エフェクトコントロールで塗り・線の表示切替
+- 📊 複数パス対応（すべてのFill/Strokeに適用）
+- ⏱️ ずらしアニメーション（1Fずつ順に表示）
+- 🔄 ずらし反転機能
+
+```
+使い方: シェイプレイヤー選択 → スクリプト実行
+```
+
