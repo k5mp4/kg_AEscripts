@@ -353,25 +353,21 @@
                     // ユニークシード (レイヤー・マスク・頂点ごとに分離) + ユーザー可変シード
                     var seedX = layerIdx * 100 + j * 37 + k * 7;
                     // スライダーはターゲットレイヤー自身のエフェクトを参照
+                    // noise を角度 (0〜2π) にマップし、元頂点を中心に円形移動
                     nullLayer.position.expression =
-                        "var _L    = thisComp.layer(\"" + layerName + "\");\n" +
-                        "var _freq = _L.effect(\"MW PosterizeTime\")(1);\n" +
-                        "var _amp  = _L.effect(\"MW Strength\")(1);\n" +
-                        "var _seed = _L.effect(\"MW Seed\")(1);\n" +
+                        "var _L     = thisComp.layer(\"" + layerName + "\");\n" +
+                        "var _freq  = _L.effect(\"MW PosterizeTime\")(1);\n" +
+                        "var _amp   = _L.effect(\"MW Strength\")(1);\n" +
+                        "var _seed  = _L.effect(\"MW Seed\")(1);\n" +
                         // toComp は 3D レイヤーでは [x,y,z] を返す → _base に Z が含まれる
-                        "var _base = _L.toComp([" + vertices[k][0] + ", " + vertices[k][1] + "]);\n" +
-                        // レイヤー中心 (Position = アンカー点のコンプ座標) を放射の起点にする
-                        "var _ctr  = _L.transform.position;\n" +
-                        "var _rdx  = _base[0] - _ctr[0];\n" +
-                        "var _rdy  = _base[1] - _ctr[1];\n" +
-                        "var _rlen = Math.sqrt(_rdx * _rdx + _rdy * _rdy);\n" +
-                        "var _ux   = (_rlen > 0.0001) ? _rdx / _rlen : 1;\n" +
-                        "var _uy   = (_rlen > 0.0001) ? _rdy / _rlen : 0;\n" +
-                        // 1次元 noise → 放射方向へのスカラーオフセット (ナナメ引っ張りなし)
-                        "var _t    = Math.floor(time * _freq) / _freq;\n" +
-                        "var _s    = (noise([_seed + " + seedX + ", _t]) * 2 - 1) * _amp;\n" +
+                        "var _base  = _L.toComp([" + vertices[k][0] + ", " + vertices[k][1] + "]);\n" +
+                        "var _t     = Math.floor(time * _freq) / _freq;\n" +
+                        // noise (0〜1) → 角度 (0〜2π) に変換して円形オフセット
+                        "var _angle = noise([_seed + " + seedX + ", _t]) * 2 * Math.PI;\n" +
+                        "var _x     = _base[0] + Math.cos(_angle) * _amp;\n" +
+                        "var _y     = _base[1] + Math.sin(_angle) * _amp;\n" +
                         // 3Dヌルなら Z を保持して返す (fromComp で正しく逆変換できるよう)
-                        "(_base.length > 2) ? [_base[0] + _ux * _s, _base[1] + _uy * _s, _base[2]] : [_base[0] + _ux * _s, _base[1] + _uy * _s];";
+                        "(_base.length > 2) ? [_x, _y, _base[2]] : [_x, _y];";
 
                     nullNames.push(nullName);
                     nullLayers.push(nullLayer);
@@ -487,18 +483,12 @@
                     "var _t     = Math.floor(time * _freq) / _freq;",
                     "var _bs    = " + baseSeed + " + _seed;",
                     // レイヤー空間で完結させる → toComp/fromComp 不要, 3Dレイヤーでも動作
-                    // アンカーポイント (レイヤー空間) を放射の起点にする
-                    "var _anc   = thisLayer.transform.anchorPoint;",
+                    // noise を角度 (0〜2π) にマップし、元頂点を中心に円形移動
                     "var newPts = [];",
                     "for (var _i = 0; _i < pts.length; _i++) {",
-                    "    var _sx   = _bs + _i * 7;",
-                    "    var _rdx  = pts[_i][0] - _anc[0];",
-                    "    var _rdy  = pts[_i][1] - _anc[1];",
-                    "    var _rlen = Math.sqrt(_rdx * _rdx + _rdy * _rdy);",
-                    "    var _ux   = (_rlen > 0.0001) ? _rdx / _rlen : 1;",
-                    "    var _uy   = (_rlen > 0.0001) ? _rdy / _rlen : 0;",
-                    "    var _s    = (noise([_sx, _t]) * 2 - 1) * _amp;",
-                    "    newPts[_i] = [pts[_i][0] + _ux * _s, pts[_i][1] + _uy * _s];",
+                    "    var _sx    = _bs + _i * 7;",
+                    "    var _angle = noise([_sx, _t]) * 2 * Math.PI;",
+                    "    newPts[_i] = [pts[_i][0] + Math.cos(_angle) * _amp, pts[_i][1] + Math.sin(_angle) * _amp];",
                     "}",
                     "thisProperty.createPath(newPts, it, ot, closed);"
                 ];
