@@ -1,6 +1,6 @@
 // kg_MaskUtil.jsx
 // Adobe After Effects Mask Utility Script
-// v1.4.0
+// v1.6.0
 
 (function (thisObj) {
 
@@ -66,6 +66,65 @@
             for (var j = 1; j <= masks.numProperties; j++) {
                 masks.property(j).property("maskShape").selected = true;
             }
+        }
+    }
+
+    function createMaskFromLayerBounds() {
+        var comp = app.project.activeItem;
+        if (!comp || !(comp instanceof CompItem)) {
+            alert("アクティブなコンポジションが見つかりません。");
+            return;
+        }
+
+        var selectedLayers = comp.selectedLayers;
+        if (selectedLayers.length === 0) {
+            alert("レイヤーを選択してください。");
+            return;
+        }
+
+        var time = comp.time;
+
+        app.beginUndoGroup("Create Mask from Layer Bounds");
+
+        var processed = 0;
+
+        for (var i = 0; i < selectedLayers.length; i++) {
+            var layer = selectedLayers[i];
+
+            var rect;
+            try {
+                rect = layer.sourceRectAtTime(time, false);
+            } catch (e) {
+                alert("バウンディングボックスの取得に失敗しました: " + layer.name + "\n" + e.toString());
+                continue;
+            }
+
+            var l = rect.left;
+            var t = rect.top;
+            var r = l + rect.width;
+            var b = t + rect.height;
+
+            try {
+                var newMask      = layer.property("ADBE Mask Parade").addProperty("ADBE Mask Atom");
+                var maskShapeProp = newMask.property("ADBE Mask Shape");
+
+                var shape        = new Shape();
+                shape.vertices   = [[l, t], [r, t], [r, b], [l, b]];
+                shape.inTangents  = [[0, 0], [0, 0], [0, 0], [0, 0]];
+                shape.outTangents = [[0, 0], [0, 0], [0, 0], [0, 0]];
+                shape.closed     = true;
+
+                maskShapeProp.setValue(shape);
+                processed++;
+            } catch (e) {
+                alert("マスクの生成に失敗しました: " + layer.name + "\n" + e.toString());
+            }
+        }
+
+        app.endUndoGroup();
+
+        if (processed === 0) {
+            alert("マスクを生成できるレイヤーが見つかりませんでした。");
         }
     }
 
@@ -218,11 +277,6 @@
 
         app.beginUndoGroup("Setup Wiggle Mask");
 
-        var ctrlLayer = getOrCreateCtrlLayer(comp);
-        ensureCtrlSlider(ctrlLayer, "MW PosterizeTime", posterizeTime);
-        ensureCtrlSlider(ctrlLayer, "MW Strength",      strength);
-        ensureCtrlSlider(ctrlLayer, "MW Seed",          seed);
-
         var processedMasks = 0;
         var noMaskLayers   = 0;
 
@@ -235,7 +289,13 @@
                 continue;
             }
 
+            // スライダーをターゲットレイヤー自身に追加 / 更新
+            ensureLayerSlider(layer, "MW PosterizeTime", posterizeTime);
+            ensureLayerSlider(layer, "MW Strength",      strength);
+            ensureLayerSlider(layer, "MW Seed",          seed);
+
             var layerIdx = layer.index;
+            var layerName = layer.name;
 
             var position, anchorPoint, scale, rotation;
             try {
@@ -244,7 +304,7 @@
                 scale       = layer.scale.valueAtTime(baseTime, false);
                 rotation    = layer.rotation.valueAtTime(baseTime, false);
             } catch (e) {
-                alert("トランスフォームの取得に失敗: " + layer.name);
+                alert("トランスフォームの取得に失敗: " + layerName);
                 continue;
             }
 
@@ -267,7 +327,10 @@
                     maskShapeProp.expressionEnabled = false;
                 }
 
-                var nullNames = [];
+                // ---- ヌル生成 (すべて先に作成してからまとめて移動) ----
+                var nullNames   = [];
+                var nullLayers  = [];
+
                 for (var k = 0; k < numVerts; k++) {
                     var nullName = nullPrefix + k;
                     var compPos  = layerToComp(vertices[k], anchorPoint, position, scale, rotation);
@@ -278,6 +341,7 @@
                     nullLayer.shy      = true;
                     nullLayer.inPoint  = layer.inPoint;
                     nullLayer.outPoint = layer.outPoint;
+
                     // 3Dレイヤー対応: ヌルも3Dにして Z 座標を保持する
                     if (layer.threeDLayer) {
                         nullLayer.threeDLayer = true;
@@ -287,14 +351,13 @@
                     }
 
                     // ユニークシード (レイヤー・マスク・頂点ごとに分離) + ユーザー可変シード
-                    // 各頂点ごとにユニークなシード (x,y 共用 → 1次元スカラーオフセットで使う)
                     var seedX = layerIdx * 100 + j * 37 + k * 7;
+                    // スライダーはターゲットレイヤー自身のエフェクトを参照
                     nullLayer.position.expression =
-                        "var _ctrl = thisComp.layer(\"MW_Control\");\n" +
-                        "var _freq = _ctrl.effect(\"MW PosterizeTime\")(1);\n" +
-                        "var _amp  = _ctrl.effect(\"MW Strength\")(1);\n" +
-                        "var _seed = _ctrl.effect(\"MW Seed\")(1);\n" +
-                        "var _L    = thisComp.layer(\"" + layer.name + "\");\n" +
+                        "var _L    = thisComp.layer(\"" + layerName + "\");\n" +
+                        "var _freq = _L.effect(\"MW PosterizeTime\")(1);\n" +
+                        "var _amp  = _L.effect(\"MW Strength\")(1);\n" +
+                        "var _seed = _L.effect(\"MW Seed\")(1);\n" +
                         // toComp は 3D レイヤーでは [x,y,z] を返す → _base に Z が含まれる
                         "var _base = _L.toComp([" + vertices[k][0] + ", " + vertices[k][1] + "]);\n" +
                         // レイヤー中心 (Position = アンカー点のコンプ座標) を放射の起点にする
@@ -311,6 +374,14 @@
                         "(_base.length > 2) ? [_base[0] + _ux * _s, _base[1] + _uy * _s, _base[2]] : [_base[0] + _ux * _s, _base[1] + _uy * _s];";
 
                     nullNames.push(nullName);
+                    nullLayers.push(nullLayer);
+                }
+
+                // 全ヌルをまとめてターゲットレイヤーの直上に移動
+                // moveBefore(layer) を順に呼ぶと先頭から詰まり、結果的に
+                // nullLayers[0] が最上、nullLayers[n-1] が layer の直上になる
+                for (var ni = 0; ni < nullLayers.length; ni++) {
+                    nullLayers[ni].moveBefore(layer);
                 }
 
                 var exprLines = [
@@ -338,7 +409,7 @@
                     processedMasks++;
                 } catch (e) {
                     alert("マスクパスへのエクスプレッション設定に失敗しました:\n" +
-                          layer.name + " / Mask " + j + "\n" + e.toString());
+                          layerName + " / Mask " + j + "\n" + e.toString());
                 }
             }
         }
@@ -349,7 +420,7 @@
             alert("選択したレイヤーにマスクが見つかりませんでした。");
         } else if (processedMasks > 0) {
             alert(processedMasks + " 個のマスクにWiggle Null を設定しました。\n" +
-                  "「MW_Control」レイヤーのエフェクトコントロールで調整できます。");
+                  "各レイヤーのエフェクトコントロールで調整できます。");
         }
     }
 
@@ -785,6 +856,10 @@
         var selectBtn = fitSection.add("button", undefined, "Select Mask Paths");
         selectBtn.helpTip = "選択レイヤーの全マスクパスプロパティを選択状態にします。";
         selectBtn.onClick = function () { selectMaskPaths(); };
+
+        var createMaskBtn = fitSection.add("button", undefined, "Create Mask from Layer Bounds");
+        createMaskBtn.helpTip = "選択レイヤーの四隅に合わせた矩形マスクを生成します。\n(現在時刻のソース範囲をレイヤー空間で取得)";
+        createMaskBtn.onClick = function () { createMaskFromLayerBounds(); };
 
         fitSection.add("statictext", undefined, "マスクをコンプサイズに収める");
 
