@@ -145,6 +145,10 @@
         nullEdgePercentEffect.name = "端の範囲 (%)";
         nullEdgePercentEffect.property("スライダー").setValue(5);
 
+        var nullSeedEffect = controlNull.Effects.addProperty("ADBE Slider Control");
+        nullSeedEffect.name = "Seed";
+        nullSeedEffect.property("スライダー").setValue(0);
+
         // 位置用
         if (applyPosition) {
             var nullPosMinAmpEffect = controlNull.Effects.addProperty("ADBE Slider Control");
@@ -203,7 +207,7 @@
             'posterizeTime(posterizeControl);',
             '',
             '// シード値',
-            'seedRandom(' + seedValue + ', true);',
+            'seedRandom(' + controlSource + '.effect("Seed")("スライダー") + index * 10000 + ' + seedValue + ', true);',
             '',
             '// レイヤーのinPointとoutPointを基準に計算',
             'var layerDuration = outPoint - inPoint;',
@@ -273,6 +277,10 @@
         edgePercentEffect.name = "端の範囲 (%)";
         edgePercentEffect.property("スライダー").setValue(5);
 
+        var seedEffect = layer.Effects.addProperty("ADBE Slider Control");
+        seedEffect.name = "Seed";
+        seedEffect.property("スライダー").setValue(0);
+
         if (applyPos) {
             var posMinAmpEffect = layer.Effects.addProperty("ADBE Slider Control");
             posMinAmpEffect.name = "位置 - 中央の振幅";
@@ -304,14 +312,9 @@
         }
     }
 
-    // ユニークなシード生成用のベース値（現在時刻ベース）
-    var seedBase = Math.floor(new Date().getTime() / 1000) % 100000;
-
     // 各レイヤーに適用
     for (var i = 0; i < selectedLayers.length; i++) {
         var layer = selectedLayers[i];
-        // レイヤーごと・プロパティごとに十分に異なるシード値を生成
-        var layerSeedBase = seedBase + (i + 1) * 10000;
 
         var transform = layer.property("ADBE Transform Group");
 
@@ -325,7 +328,7 @@
             var positionProp = transform.property("ADBE Position");
             if (positionProp && positionProp.canSetExpression) {
                 positionProp.expression = createWiggleExpression(
-                    layerSeedBase + 100,
+                    100,
                     useNullControl,
                     nullLayerName,
                     "position",
@@ -340,7 +343,7 @@
             var scaleProp = transform.property("ADBE Scale");
             if (scaleProp && scaleProp.canSetExpression) {
                 scaleProp.expression = createWiggleExpression(
-                    layerSeedBase + 200,
+                    200,
                     useNullControl,
                     nullLayerName,
                     "scale",
@@ -355,7 +358,7 @@
             var rotationProp = transform.property("ADBE Rotate Z");
             if (rotationProp && rotationProp.canSetExpression) {
                 rotationProp.expression = createWiggleExpression(
-                    layerSeedBase + 300,
+                    300,
                     useNullControl,
                     nullLayerName,
                     "rotation",
@@ -383,7 +386,8 @@
     message += "・Posterize Time Control: フレームレート\n" +
         "・中央/端の周波数: wiggleの速さ\n" +
         "・端の範囲 (%): 端の補間範囲（0-50%）\n" +
-        "・各プロパティの中央/端の振幅: wiggleの大きさ";
+        "・各プロパティの中央/端の振幅: wiggleの大きさ\n" +
+        "・Seed: wiggleパターンを変える（整数値）";
 
     alert(message);
 

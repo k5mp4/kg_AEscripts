@@ -134,9 +134,15 @@ Usage:
         }
 
         // 各シェイプグループに線が無い場合は追加する
-        var shapeGroups = findAllShapeGroups(contents);
-        for (var g = 0; g < shapeGroups.length; g++) {
-            var grp = shapeGroups[g];
+        // addProperty呼び出し後にプロパティ参照が無効化されるため、毎イテレーションで再取得する
+        var totalGroups = findAllShapeGroups(contents).length;
+        for (var g = 0; g < totalGroups; g++) {
+            layer = comp.layer(layerIndex);
+            contents = layer.property("ADBE Root Vectors Group");
+            var currentGroups = findAllShapeGroups(contents);
+            if (g >= currentGroups.length) break;
+
+            var grp = currentGroups[g];
             var groupContents = grp.property("ADBE Vectors Group");
             if (groupContents) {
                 // このグループに塗りがあるか確認

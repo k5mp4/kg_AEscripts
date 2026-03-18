@@ -330,6 +330,10 @@
         edgePercentEffect.name = getUniqueName("端の範囲 (%)");
         edgePercentEffect.property("スライダー").setValue(edgePercent);
 
+        var seedEffect = effectsGroup.addProperty("ADBE Slider Control");
+        seedEffect.name = getUniqueName("Seed");
+        seedEffect.property("スライダー").setValue(0);
+
         if (isWiggle) {
             var minFreqEffect = effectsGroup.addProperty("ADBE Slider Control");
             minFreqEffect.name = getUniqueName("中央の周波数");
@@ -379,6 +383,10 @@
         var nullEdgePercentEffect = controlNull.Effects.addProperty("ADBE Slider Control");
         nullEdgePercentEffect.name = "端の範囲 (%)";
         nullEdgePercentEffect.property("スライダー").setValue(edgePercentDefault);
+
+        var nullSeedEffect = controlNull.Effects.addProperty("ADBE Slider Control");
+        nullSeedEffect.name = "Seed";
+        nullSeedEffect.property("スライダー").setValue(0);
 
         if (isWiggleMode) {
             // Wiggleモード用エフェクト
@@ -452,7 +460,7 @@
             'posterizeTime(posterizeVal);',
             '',
             '// シード値',
-            'seedRandom(' + seedValue + ', true);',
+            'seedRandom(ctrl.effect("Seed' + s + '")("スライダー") + index * 10000 + ' + seedValue + ', true);',
             '',
             '// レイヤーのinPointとoutPointを基準に計算',
             'var layerDuration = outPoint - inPoint;',
@@ -650,7 +658,7 @@
             'var frameTime = 1 / posterizeVal;',
             '',
             '// シード値（方向のランダム化）',
-            'seedRandom(' + seedValue + ', true);',
+            'seedRandom(ctrl.effect("Seed' + s + '")("スライダー") + index * 10000 + ' + seedValue + ', true);',
             'var direction = random() > 0.5 ? 1 : -1;',
             '',
             '// レイヤーのinPointとoutPointを基準に計算',
@@ -703,8 +711,6 @@
         ].join('\n');
     }
 
-    // ユニークなシード生成用のベース値（現在時刻ベース）
-    var seedBase = Math.floor(new Date().getTime() / 1000) % 100000;
     var appliedCount = 0;
 
     // 各プロパティに適用
@@ -720,8 +726,8 @@
             continue;
         }
 
-        // シード値を生成
-        var seedValue = seedBase + (propData.layerIndex * 10000) + (p * 100);
+        // プロパティ固有のオフセット（同じレイヤーの複数プロパティを区別）
+        var seedValue = p * 100;
 
         var effectSuffix = processedLayers[propData.layerIndex] || "";
         try {
@@ -796,6 +802,7 @@
             "「" + nullLayerName + "」のエフェクトコントロールで調整できます:\n" +
             "・Posterize Time: フレームレート\n" +
             "・端の範囲 (%): 端の補間範囲（0-50%）\n" +
+            "・Seed: wiggleパターンを変える（整数値）\n" +
             "・中央/端の周波数: wiggleの速さ\n" +
             "・中央/端の振幅: wiggleの大きさ";
     } else {
@@ -803,6 +810,7 @@
             "「" + nullLayerName + "」のエフェクトコントロールで調整できます:\n" +
             "・Posterize Time: フレームレート\n" +
             "・端の範囲 (%): 端の補間範囲（0-50%）\n" +
+            "・Seed: 方向パターンを変える（整数値）\n" +
             "・中央/端の速度: 変化速度（度/秒など）";
     }
 

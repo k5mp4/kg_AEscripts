@@ -38,6 +38,20 @@ Install:
         debugLog = [];
     }
 
+    // イージングプレビュー用カラー（Ease_1 〜 Ease_10 対応）
+    var PREVIEW_COLORS = [
+        [1.00, 0.25, 0.25, 1], // 1 Red
+        [1.00, 0.60, 0.10, 1], // 2 Orange
+        [0.95, 0.90, 0.10, 1], // 3 Yellow
+        [0.25, 0.85, 0.25, 1], // 4 Green
+        [0.10, 0.85, 0.75, 1], // 5 Teal
+        [0.10, 0.55, 1.00, 1], // 6 Blue
+        [0.55, 0.10, 1.00, 1], // 7 Purple
+        [1.00, 0.10, 0.75, 1], // 8 Pink
+        [0.70, 0.70, 0.70, 1], // 9 Gray
+        [1.00, 1.00, 1.00, 1]  // 10 White
+    ];
+
     // イージングプリセット定義
     var EASE_PRESETS = [
         { name: "Ease_1", inSpeed: 0, inInfluence: 33.33, outSpeed: 0, outInfluence: 33.33 },
@@ -88,6 +102,55 @@ Install:
             motherNameTxt.characters = 12;
 
             var createMotherBtn = motherPanel.add("button", undefined, "Create Mother");
+
+            // Duplicate Panel
+            var dupPanel = pal.add("panel", undefined, "Duplicate Mother");
+            dupPanel.orientation = "column";
+            dupPanel.alignChildren = ["fill", "top"];
+
+            var dupBtn = dupPanel.add("button", undefined, "Duplicate to Other Comps");
+            dupBtn.helpTip =
+                "現在のコンポジションの motherレイヤーを\n" +
+                "選択した他のコンポジションに複製します。\n" +
+                "複製先の同名レイヤーはスキップされます。";
+
+            dupBtn.onClick = function () {
+                var comp = getActiveComp();
+                if (!comp) { alert("コンポジションをアクティブにしてください。"); return; }
+
+                var motherName = motherNameTxt.text || "mother";
+                var motherLayer = findMotherLayer(comp, motherName);
+                if (!motherLayer) {
+                    alert("\"" + motherName + "\" レイヤーが見つかりません。\n先に「Create Mother」で作成してください。");
+                    return;
+                }
+
+                var otherComps = getOtherComps(comp);
+                if (otherComps.length === 0) {
+                    alert("プロジェクトに他のコンポジションがありません。");
+                    return;
+                }
+
+                app.beginUndoGroup("Duplicate Mother Layer");
+
+                var succeeded = [], skipped = [];
+                for (var i = 0; i < otherComps.length; i++) {
+                    var result = duplicateMotherToComp(motherLayer, otherComps[i]);
+                    if (result) {
+                        succeeded.push(otherComps[i].name);
+                    } else {
+                        skipped.push(otherComps[i].name);
+                    }
+                }
+
+                app.endUndoGroup();
+
+                var msg = succeeded.length + " 個のコンポジションに複製しました。";
+                if (skipped.length > 0) {
+                    msg += "\n\nスキップ (同名レイヤーあり):\n" + skipped.join("\n");
+                }
+                alert(msg);
+            };
 
             // Apply Panel
             var applyPanel = pal.add("panel", undefined, "Apply");
@@ -187,6 +250,86 @@ Install:
                 }
             }
 
+            // ===== Duplicate Helpers =====
+
+            /**
+             * プロジェクト内の全 CompItem を返す（currentComp を除外）
+             */
+            function getOtherComps(currentComp) {
+                var comps = [];
+                for (var i = 1; i <= app.project.numItems; i++) {
+                    var item = app.project.item(i);
+                    if (item instanceof CompItem && item !== currentComp) {
+                        comps.push(item);
+                    }
+                }
+                return comps;
+            }
+
+            /**
+             * motherLayer を targetComp に複製しレイヤー最上部に配置する。
+             * 同名レイヤーが既存の場合は null を返す（スキップ）。
+             * スライダー効果のキーフレーム・イージングも完全コピー。
+             */
+            function duplicateMotherToComp(motherLayer, targetComp) {
+                // 同名チェック
+                for (var li = 1; li <= targetComp.numLayers; li++) {
+                    if (targetComp.layer(li).name === motherLayer.name) return null;
+                }
+
+                var newNull = targetComp.layers.addNull(); // index 1 に追加
+                newNull.name  = motherLayer.name;
+                newNull.label = motherLayer.label;
+                newNull.inPoint  = targetComp.displayStartTime;
+                newNull.outPoint = targetComp.displayStartTime + targetComp.duration;
+
+                var nullIdx  = newNull.index;
+                var sourceFx = motherLayer.property("ADBE Effect Parade");
+
+                for (var ei = 1; ei <= sourceFx.numProperties; ei++) {
+                    var srcEffect = sourceFx.property(ei);
+
+                    // エフェクト追加（追加後はインデックスで再取得）
+                    targetComp.layer(nullIdx).property("ADBE Effect Parade")
+                              .addProperty(srcEffect.matchName).name = srcEffect.name;
+
+                    var tgtFx     = targetComp.layer(nullIdx).property("ADBE Effect Parade");
+                    var tgtEffect = tgtFx.property(srcEffect.name);
+
+                    var srcSlider = srcEffect.property("ADBE Slider Control-0001");
+                    var tgtSlider = tgtEffect.property("ADBE Slider Control-0001");
+
+                    if (srcSlider.numKeys > 0) {
+                        // キーフレーム値をコピー
+                        for (var ki = 1; ki <= srcSlider.numKeys; ki++) {
+                            tgtSlider.setValueAtTime(
+                                srcSlider.keyTime(ki), srcSlider.keyValue(ki)
+                            );
+                        }
+                        // イージング・補間タイプをコピー
+                        for (var ki = 1; ki <= tgtSlider.numKeys; ki++) {
+                            try {
+                                tgtSlider.setInterpolationTypeAtKey(
+                                    ki,
+                                    srcSlider.keyInInterpolationType(ki),
+                                    srcSlider.keyOutInterpolationType(ki)
+                                );
+                                tgtSlider.setTemporalEaseAtKey(
+                                    ki,
+                                    srcSlider.keyInTemporalEase(ki),
+                                    srcSlider.keyOutTemporalEase(ki)
+                                );
+                            } catch (e) {}
+                        }
+                    } else {
+                        tgtSlider.setValue(srcSlider.value);
+                    }
+                }
+
+                targetComp.layer(nullIdx).moveToBeginning();
+                return targetComp.layer(1);
+            }
+
             // ===== Create Mother Button =====
             createMotherBtn.onClick = function () {
                 var comp = getActiveComp();
@@ -231,6 +374,84 @@ Install:
                         sliderProp.setTemporalEaseAtKey(1, [easeIn], [easeOut]);
                         sliderProp.setTemporalEaseAtKey(2, [easeIn], [easeOut]);
                     }
+
+                    // ===== Ease Preview Shape Layer (単一レイヤー・ガイド) =====
+                    // 全 Ease の円を 1 枚のシェイプレイヤーにまとめ、ガイドレイヤーとして生成。
+                    // 各グループトランスフォームの Position にエクスプレッションを設定。
+                    // レイヤー原点をコンプ左上 [0,0] に固定することでグループ座標 = コンプ座標にする。
+                    var numEases = EASE_PRESETS.length;
+                    // 1/4 縮小: 使用エリア = コンプ左上 2%〜27% の正方形
+                    var radius   = Math.max(3, Math.round(comp.height * 0.25 / (numEases + 1) * 0.4));
+
+                    var prevLayer = comp.layers.addShape();
+                    prevLayer.name       = "Ease Preview";
+                    prevLayer.label      = 2;
+                    prevLayer.inPoint    = comp.displayStartTime;
+                    prevLayer.outPoint   = comp.displayStartTime + comp.duration;
+                    prevLayer.guideLayer = true;
+
+                    // レイヤー原点をコンプ左上に合わせる（グループ座標 ≒ コンプ座標）
+                    prevLayer.transform.anchorPoint.setValue([0, 0]);
+                    prevLayer.transform.position.setValue([0, 0]);
+
+                    var prevLayerIdx = prevLayer.index;
+
+                    for (var p = 0; p < numEases; p++) {
+                        var pr   = EASE_PRESETS[p];
+                        var yPos = comp.height * (0.02 + 0.25 * (p + 1) / (numEases + 1));
+
+                        // 毎回 contents を再取得（addProperty 後の参照失効を防ぐ）
+                        var cts = comp.layer(prevLayerIdx).property("ADBE Root Vectors Group");
+                        cts.addProperty("ADBE Vector Group").name = pr.name;
+
+                        // グループを名前で再取得
+                        var grp2 = comp.layer(prevLayerIdx)
+                                       .property("ADBE Root Vectors Group")
+                                       .property(pr.name);
+                        var gc = grp2.property("ADBE Vectors Group");
+
+                        // Ellipse
+                        gc.addProperty("ADBE Vector Shape - Ellipse");
+                        var ell = comp.layer(prevLayerIdx)
+                                      .property("ADBE Root Vectors Group")
+                                      .property(pr.name)
+                                      .property("ADBE Vectors Group")
+                                      .property(1); // Ellipse は最初に追加したので index 1
+                        ell.property("ADBE Vector Ellipse Size").setValue([radius * 2, radius * 2]);
+
+                        // Fill
+                        comp.layer(prevLayerIdx)
+                            .property("ADBE Root Vectors Group")
+                            .property(pr.name)
+                            .property("ADBE Vectors Group")
+                            .addProperty("ADBE Vector Graphic - Fill")
+                            .property("ADBE Vector Fill Color")
+                            .setValue(PREVIEW_COLORS[p]);
+
+                        // グループトランスフォームの Position にエクスプレッション
+                        var grpPos = comp.layer(prevLayerIdx)
+                                        .property("ADBE Root Vectors Group")
+                                        .property(pr.name)
+                                        .property("ADBE Vector Transform Group")
+                                        .property("ADBE Vector Position");
+                        grpPos.setValue([comp.width * 0.02, yPos]);
+                        grpPos.expression =
+                            "var m      = thisComp.layer(\"" + motherName + "\");\n" +
+                            "var slider = m.effect(\"" + pr.name + "\")(1);\n" +
+                            "var t1     = slider.key(1).time;\n" +
+                            "var t2     = slider.key(slider.numKeys).time;\n" +
+                            "var dur    = t2 - t1;\n" +
+                            "var loopT  = t1 + ((time - t1) % dur);\n" +
+                            "var t      = slider.valueAtTime(loopT);\n" +
+                            "var l = thisComp.width * 0.02;\n" +
+                            "var r = thisComp.width * 0.27;\n" +
+                            "var y = thisComp.height * " + (0.02 + 0.25 * (p + 1) / (numEases + 1)) + ";\n" +
+                            "[l + (r - l) * t, y];";
+                    }
+
+                    // mother を最上部に戻す
+                    var refreshedMother = findMotherLayer(comp, motherName);
+                    if (refreshedMother) refreshedMother.moveToBeginning();
 
                     motherLayer.selected = true;
 
